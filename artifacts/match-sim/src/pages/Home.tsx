@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { matches } from "@/data/matches";
 import MatchCard from "@/components/MatchCard";
 import AccaBuilder from "@/components/AccaBuilder";
+import DayStats from "@/components/DayStats";
 import { SimulationResult } from "@/lib/simulation";
 
 type DayFilter = "all" | "saturday" | "sunday";
@@ -20,6 +21,7 @@ export default function Home() {
   const [results, setResults] = useState<Record<number, SimulationResult>>({});
   const [dayFilter, setDayFilter] = useState<DayFilter>("all");
   const [leagueFilter, setLeagueFilter] = useState<LeagueFilter>("all");
+  const [showStats, setShowStats] = useState(false);
 
   const handleResult = useCallback((matchId: number, result: SimulationResult) => {
     setResults((prev) => ({ ...prev, [matchId]: result }));
@@ -33,32 +35,36 @@ export default function Home() {
     return true;
   });
 
-  // Group by league for display
   const grouped: Record<string, typeof filtered> = {};
   for (const m of filtered) {
     if (!grouped[m.leagueShort]) grouped[m.leagueShort] = [];
     grouped[m.leagueShort].push(m);
   }
-
   const groupKeys = LEAGUE_ORDER.filter((l) => grouped[l]?.length);
 
   const totalCount = filtered.length;
-  const simCount = filtered.filter((m) => results[m.id]).length;
+  const simCount = Object.keys(results).length;
+
+  const dayLabel =
+    dayFilter === "saturday" ? "Saturday 16 May" :
+    dayFilter === "sunday" ? "Sunday 17 May" :
+    "Full Weekend";
 
   return (
     <div className="min-h-screen bg-[#080f17] flex flex-col">
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="bg-[#0d1e2e] border-b border-white/8 sticky top-0 z-10 backdrop-blur-sm">
         <div className="max-w-2xl mx-auto px-4 pt-4 pb-3 flex items-center gap-3">
           <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
           </div>
           <div>
             <h1 className="text-white font-black text-base leading-none">Match Simulator</h1>
             <p className="text-white/30 text-[10px] mt-0.5">
-              Monte Carlo · Poisson · {simCount}/{totalCount} simulated
+              Monte Carlo · Poisson · {simCount}/{matches.length} simulated
             </p>
           </div>
           <div className="ml-auto text-right">
@@ -68,14 +74,14 @@ export default function Home() {
         </div>
 
         {/* Day tabs */}
-        <div className="max-w-2xl mx-auto px-4 pb-3 flex gap-2">
+        <div className="max-w-2xl mx-auto px-4 pb-2 flex gap-2">
           {(["all", "saturday", "sunday"] as DayFilter[]).map((d) => {
             const label = d === "all" ? "All" : d === "saturday" ? "Sat 16.05" : "Sun 17.05";
             const count = d === "all" ? matches.length : matches.filter((m) => m.day === d).length;
             return (
               <button
                 key={d}
-                onClick={() => { setDayFilter(d); setLeagueFilter("all"); }}
+                onClick={() => { setDayFilter(d); setLeagueFilter("all"); setShowStats(false); }}
                 className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
                   dayFilter === d
                     ? "bg-emerald-500 text-white"
@@ -83,14 +89,32 @@ export default function Home() {
                 }`}
               >
                 {label}
-                <span className={`ml-1 text-[10px] ${dayFilter === d ? "text-white/70" : "text-white/20"}`}>({count})</span>
+                <span className={`ml-1 text-[10px] ${dayFilter === d ? "text-white/70" : "text-white/20"}`}>
+                  ({count})
+                </span>
               </button>
             );
           })}
         </div>
 
-        {/* League filter pills */}
+        {/* League filter + Stats toggle */}
         <div className="max-w-2xl mx-auto px-4 pb-3 flex gap-2 overflow-x-auto scrollbar-hide">
+          {/* Stats toggle */}
+          <button
+            onClick={() => setShowStats((v) => !v)}
+            className={`shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+              showStats ? "bg-blue-500/30 text-blue-300 border border-blue-500/40" : "bg-white/5 text-white/40 hover:text-white/60"
+            }`}
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            Day Stats
+          </button>
+
+          <div className="w-px bg-white/8 shrink-0" />
+
           <button
             onClick={() => setLeagueFilter("all")}
             className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
@@ -108,7 +132,9 @@ export default function Home() {
                   key={l}
                   onClick={() => setLeagueFilter(l)}
                   className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
-                    leagueFilter === l ? "bg-white/15 text-white" : "bg-white/5 text-white/40 hover:text-white/60"
+                    leagueFilter === l
+                      ? "bg-white/15 text-white"
+                      : "bg-white/5 text-white/40 hover:text-white/60"
                   }`}
                 >
                   {flag} {l}
@@ -118,12 +144,40 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Scrollable content */}
+      {/* ── Scrollable content ── */}
       <div className="flex-1 overflow-y-auto pb-2">
-        <div className="max-w-2xl mx-auto px-4 pt-4 pb-2">
+
+        {/* Day Stats panel */}
+        {showStats && (
+          <div className="max-w-2xl mx-auto px-4 pt-4">
+            <div className="bg-[#0d1e2e] border border-white/8 rounded-2xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-white/8 flex items-center justify-between">
+                <div>
+                  <div className="text-white font-bold text-sm">{dayLabel} · Stats</div>
+                  <div className="text-white/30 text-[10px] mt-0.5">Based on {simCount} simulated matches</div>
+                </div>
+                <button
+                  onClick={() => setShowStats(false)}
+                  className="w-6 h-6 rounded-full bg-white/8 flex items-center justify-center hover:bg-white/15 transition-colors"
+                >
+                  <svg className="w-3 h-3 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-4">
+                <DayStats day={dayFilter} results={results} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Disclaimer */}
+        <div className="max-w-2xl mx-auto px-4 pt-4">
           <div className="bg-amber-500/8 border border-amber-500/15 rounded-xl px-4 py-2.5 flex items-start gap-2">
             <svg className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p className="text-amber-400/70 text-[10px] leading-relaxed">
               Predictions use a Poisson Monte Carlo model seeded from bookmaker odds. Odds shown are indicative — verify live lines before placing bets. For informational purposes only.
@@ -132,13 +186,12 @@ export default function Home() {
         </div>
 
         {/* Grouped match cards */}
-        <div className="max-w-2xl mx-auto px-4 py-3 space-y-6 pb-4">
+        <div className="max-w-2xl mx-auto px-4 py-4 space-y-6 pb-4">
           {groupKeys.map((league) => {
             const leagueMatches = grouped[league];
             const sample = leagueMatches[0];
             return (
               <div key={league}>
-                {/* League header */}
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-base leading-none">{sample.flag}</span>
                   <div>
