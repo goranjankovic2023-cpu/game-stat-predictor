@@ -1,219 +1,251 @@
-import { useState, useCallback } from "react";
-import { matches } from "@/data/matches";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { matches, SPORTS, getDateRange, formatDate, leaguesForSport } from "@/data/matches";
+import { SimulationResult } from "@/lib/simulation";
+import type { Sport } from "@/lib/simulation";
 import MatchCard from "@/components/MatchCard";
 import AccaBuilder from "@/components/AccaBuilder";
 import DayStats from "@/components/DayStats";
-import { SimulationResult } from "@/lib/simulation";
+import HotThisWeek from "@/components/HotThisWeek";
 
-type DayFilter = "all" | "saturday" | "sunday";
-type LeagueFilter = string;
-
-const LEAGUE_ORDER = [
-  "Bundesliga",
-  "1. Liga",
-  "Premier League",
-  "Serie A",
-  "La Liga",
-  "Eredivisie",
-];
+const DATES = getDateRange();
 
 export default function Home() {
   const [results, setResults] = useState<Record<number, SimulationResult>>({});
-  const [dayFilter, setDayFilter] = useState<DayFilter>("all");
-  const [leagueFilter, setLeagueFilter] = useState<LeagueFilter>("all");
-  const [showStats, setShowStats] = useState(false);
+  const [activeSport, setActiveSport] = useState<Sport>("football");
+  const [activeDate, setActiveDate] = useState<string>(DATES[4]); // May 16
+  const [activeLeague, setActiveLeague] = useState<string>("All");
+  const [showDayStats, setShowDayStats] = useState(false);
+  const [showHot, setShowHot] = useState(false);
+  const dateStripRef = useRef<HTMLDivElement>(null);
 
   const handleResult = useCallback((matchId: number, result: SimulationResult) => {
     setResults((prev) => ({ ...prev, [matchId]: result }));
   }, []);
 
-  const allLeagues = LEAGUE_ORDER.filter((l) => matches.some((m) => m.leagueShort === l));
+  // Scroll active date pill into view
+  useEffect(() => {
+    const strip = dateStripRef.current;
+    if (!strip) return;
+    const idx = DATES.indexOf(activeDate);
+    const btn = strip.children[idx] as HTMLElement | undefined;
+    btn?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [activeDate]);
 
-  const filtered = matches.filter((m) => {
-    if (dayFilter !== "all" && m.day !== dayFilter) return false;
-    if (leagueFilter !== "all" && m.leagueShort !== leagueFilter) return false;
-    return true;
-  });
+  const leagues = ["All", ...leaguesForSport(activeSport)];
+  // Reset league when it disappears after sport change
+  const safeleague = leagues.includes(activeLeague) ? activeLeague : "All";
 
-  const grouped: Record<string, typeof filtered> = {};
-  for (const m of filtered) {
-    if (!grouped[m.leagueShort]) grouped[m.leagueShort] = [];
-    grouped[m.leagueShort].push(m);
-  }
-  const groupKeys = LEAGUE_ORDER.filter((l) => grouped[l]?.length);
+  const filteredMatches = matches.filter(
+    (m) =>
+      m.sport === activeSport &&
+      m.date === activeDate &&
+      (safeleague === "All" || m.leagueShort === safeleague)
+  );
 
-  const totalCount = filtered.length;
   const simCount = Object.keys(results).length;
+  const totalCount = matches.length;
 
-  const dayLabel =
-    dayFilter === "saturday" ? "Saturday 16 May" :
-    dayFilter === "sunday" ? "Sunday 17 May" :
-    "Full Weekend";
+  const sportColor: Record<string, string> = {
+    football:   "bg-emerald-500/20 border-emerald-500/40 text-emerald-400",
+    basketball: "bg-orange-500/20 border-orange-500/40 text-orange-400",
+    handball:   "bg-blue-500/20 border-blue-500/40 text-blue-400",
+    volleyball: "bg-purple-500/20 border-purple-500/40 text-purple-400",
+  };
 
   return (
-    <div className="min-h-screen bg-[#080f17] flex flex-col">
-      {/* ── Header ── */}
-      <div className="bg-[#0d1e2e] border-b border-white/8 sticky top-0 z-10 backdrop-blur-sm">
-        <div className="max-w-2xl mx-auto px-4 pt-4 pb-3 flex items-center gap-3">
-          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0">
-            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
+    <div className="min-h-screen bg-[#080f17] text-white">
+      {/* ── Sticky header ──────────────────────────────────────── */}
+      <div className="bg-[#0d1e2e] border-b border-white/8 sticky top-0 z-30">
+        <div className="max-w-2xl mx-auto px-4">
+
+          {/* Title + action buttons */}
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <h1 className="text-base font-black text-white tracking-tight leading-none">Match Simulator</h1>
+              <div className="text-[10px] text-white/25 mt-1">
+                {simCount}/{totalCount} simulated · Poisson / Monte Carlo
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setShowHot((v) => !v); setShowDayStats(false); }}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
+                  showHot
+                    ? "bg-amber-500/25 border-amber-500/50 text-amber-400"
+                    : "bg-amber-500/10 border-amber-500/20 text-amber-400/60 hover:text-amber-400 hover:bg-amber-500/15"
+                }`}
+              >
+                🔥 <span className="hidden sm:inline">Hot Week</span>
+              </button>
+              <button
+                onClick={() => { setShowDayStats((v) => !v); setShowHot(false); }}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
+                  showDayStats
+                    ? "bg-emerald-500/25 border-emerald-500/40 text-emerald-400"
+                    : "bg-white/8 border-white/12 text-white/40 hover:text-white hover:bg-white/12"
+                }`}
+              >
+                📊 <span className="hidden sm:inline">Stats</span>
+              </button>
+            </div>
           </div>
-          <div>
-            <h1 className="text-white font-black text-base leading-none">Match Simulator</h1>
-            <p className="text-white/30 text-[10px] mt-0.5">
-              Monte Carlo · Poisson · {simCount}/{matches.length} simulated
-            </p>
-          </div>
-          <div className="ml-auto text-right">
-            <div className="text-emerald-400 text-[10px] font-semibold uppercase tracking-widest">{totalCount} Matches</div>
-            <div className="text-white/30 text-[10px]">16–17 May 2026</div>
+
+          {/* Sport tabs */}
+          <div className="flex gap-1.5 pb-3">
+            {SPORTS.map((s) => {
+              const dayCount = matches.filter((m) => m.sport === s.key && m.date === activeDate).length;
+              const isActive = activeSport === s.key;
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => { setActiveSport(s.key); setActiveLeague("All"); }}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                    isActive ? sportColor[s.key] : "bg-white/5 border-white/8 text-white/40 hover:text-white/70"
+                  }`}
+                >
+                  <span>{s.emoji}</span>
+                  <span className="hidden xs:inline">{s.label}</span>
+                  {dayCount > 0 && (
+                    <span className={`text-[9px] font-black rounded-full px-1 ${isActive ? "bg-white/20 text-white" : "bg-white/8 text-white/30"}`}>
+                      {dayCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Day tabs */}
-        <div className="max-w-2xl mx-auto px-4 pb-2 flex gap-2">
-          {(["all", "saturday", "sunday"] as DayFilter[]).map((d) => {
-            const label = d === "all" ? "All" : d === "saturday" ? "Sat 16.05" : "Sun 17.05";
-            const count = d === "all" ? matches.length : matches.filter((m) => m.day === d).length;
+        {/* Date strip */}
+        <div ref={dateStripRef} className="flex gap-1.5 overflow-x-auto scrollbar-hide px-4 pb-3 max-w-2xl mx-auto">
+          {DATES.map((date) => {
+            const fmt = formatDate(date);
+            const cnt = matches.filter((m) => m.sport === activeSport && m.date === date).length;
+            const active = activeDate === date;
             return (
               <button
-                key={d}
-                onClick={() => { setDayFilter(d); setLeagueFilter("all"); setShowStats(false); }}
-                className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
-                  dayFilter === d
-                    ? "bg-emerald-500 text-white"
-                    : "bg-white/5 text-white/40 hover:text-white/70"
+                key={date}
+                onClick={() => setActiveDate(date)}
+                className={`shrink-0 flex flex-col items-center justify-center px-2.5 py-1.5 rounded-xl border text-center min-w-[46px] transition-all ${
+                  active
+                    ? "bg-emerald-500 border-emerald-400 shadow-lg shadow-emerald-500/20"
+                    : cnt > 0
+                    ? "bg-white/8 border-white/12 text-white/60 hover:bg-white/12"
+                    : "bg-white/3 border-white/5 text-white/15"
                 }`}
               >
-                {label}
-                <span className={`ml-1 text-[10px] ${dayFilter === d ? "text-white/70" : "text-white/20"}`}>
-                  ({count})
-                </span>
+                <span className={`text-[8px] uppercase tracking-widest font-semibold ${active ? "text-emerald-100" : "text-white/40"}`}>{fmt.day}</span>
+                <span className={`text-sm font-black leading-tight ${active ? "text-white" : ""}`}>{fmt.short.split(" ")[0]}</span>
+                <span className={`text-[9px] ${active ? "text-emerald-100/70" : "text-white/30"}`}>{fmt.short.split(" ")[1]}</span>
+                {cnt > 0 && (
+                  <span className={`text-[8px] font-bold mt-0.5 ${active ? "text-emerald-100" : "text-white/25"}`}>{cnt}</span>
+                )}
               </button>
             );
           })}
         </div>
 
-        {/* League filter + Stats toggle */}
-        <div className="max-w-2xl mx-auto px-4 pb-3 flex gap-2 overflow-x-auto scrollbar-hide">
-          {/* Stats toggle */}
-          <button
-            onClick={() => setShowStats((v) => !v)}
-            className={`shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
-              showStats ? "bg-blue-500/30 text-blue-300 border border-blue-500/40" : "bg-white/5 text-white/40 hover:text-white/60"
-            }`}
-          >
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            Day Stats
-          </button>
-
-          <div className="w-px bg-white/8 shrink-0" />
-
-          <button
-            onClick={() => setLeagueFilter("all")}
-            className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
-              leagueFilter === "all" ? "bg-white/15 text-white" : "bg-white/5 text-white/40 hover:text-white/60"
-            }`}
-          >
-            All Leagues
-          </button>
-          {allLeagues
-            .filter((l) => dayFilter === "all" || matches.some((m) => m.leagueShort === l && m.day === dayFilter))
-            .map((l) => {
-              const flag = matches.find((m) => m.leagueShort === l)?.flag ?? "";
+        {/* League filter pills */}
+        {leagues.length > 1 && (
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-4 pb-3 max-w-2xl mx-auto">
+            {leagues.map((lg) => {
+              const flag = lg === "All" ? "" : (matches.find((m) => m.leagueShort === lg)?.flag ?? "");
               return (
                 <button
-                  key={l}
-                  onClick={() => setLeagueFilter(l)}
-                  className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors ${
-                    leagueFilter === l
-                      ? "bg-white/15 text-white"
-                      : "bg-white/5 text-white/40 hover:text-white/60"
+                  key={lg}
+                  onClick={() => setActiveLeague(lg)}
+                  className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold border transition-colors ${
+                    safeleague === lg
+                      ? "bg-white/20 border-white/30 text-white"
+                      : "bg-white/5 border-white/8 text-white/35 hover:text-white/60"
                   }`}
                 >
-                  {flag} {l}
+                  {flag && <span className="mr-1">{flag}</span>}{lg}
                 </button>
               );
             })}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* ── Scrollable content ── */}
-      <div className="flex-1 overflow-y-auto pb-2">
+      {/* ── Body ─────────────────────────────────────────────── */}
+      <div className="max-w-2xl mx-auto px-4 py-4 space-y-4 pb-28">
 
-        {/* Day Stats panel */}
-        {showStats && (
-          <div className="max-w-2xl mx-auto px-4 pt-4">
-            <div className="bg-[#0d1e2e] border border-white/8 rounded-2xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/8 flex items-center justify-between">
-                <div>
-                  <div className="text-white font-bold text-sm">{dayLabel} · Stats</div>
-                  <div className="text-white/30 text-[10px] mt-0.5">Based on {simCount} simulated matches</div>
-                </div>
+        {/* Hot This Week */}
+        {showHot && (
+          <HotThisWeek results={results} onClose={() => setShowHot(false)} />
+        )}
+
+        {/* Day Stats */}
+        {showDayStats && (
+          <DayStats date={activeDate} results={results} onClose={() => setShowDayStats(false)} />
+        )}
+
+        {/* Disclaimer */}
+        <div className="bg-amber-500/8 border border-amber-500/15 rounded-xl px-3 py-2 flex items-start gap-2">
+          <span className="text-amber-400 text-sm shrink-0">ℹ️</span>
+          <p className="text-amber-400/60 text-[10px] leading-relaxed">
+            Poisson Monte Carlo model seeded from bookmaker odds. For informational purposes only — verify live odds before placing bets.
+          </p>
+        </div>
+
+        {/* Match cards */}
+        {filteredMatches.length > 0 ? (
+          <>
+            <div className="text-[9px] text-white/20 uppercase tracking-widest flex items-center gap-2">
+              <span>{formatDate(activeDate).long}</span>
+              <span>·</span>
+              <span>{filteredMatches.length} match{filteredMatches.length !== 1 ? "es" : ""}</span>
+              {safeleague !== "All" && <><span>·</span><span>{safeleague}</span></>}
+            </div>
+            <div className="space-y-4">
+              {filteredMatches.map((match, idx) => (
+                <MatchCard
+                  key={match.id}
+                  match={match}
+                  onResult={handleResult}
+                  delay={idx * 120}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-16">
+            <div className="text-5xl mb-3">{SPORTS.find((s) => s.key === activeSport)?.emoji}</div>
+            <div className="text-white/30 text-sm font-semibold mb-1">No matches on this day</div>
+            <div className="text-white/15 text-xs mb-4">Try another date or sport</div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {DATES.filter((d) => matches.some((m) => m.sport === activeSport && m.date === d)).map((d) => (
                 <button
-                  onClick={() => setShowStats(false)}
-                  className="w-6 h-6 rounded-full bg-white/8 flex items-center justify-center hover:bg-white/15 transition-colors"
+                  key={d}
+                  onClick={() => setActiveDate(d)}
+                  className="px-3 py-1.5 bg-white/8 border border-white/12 rounded-lg text-xs text-white/50 hover:text-white hover:bg-white/12 transition-colors"
                 >
-                  <svg className="w-3 h-3 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  {formatDate(d).short}
                 </button>
-              </div>
-              <div className="p-4">
-                <DayStats day={dayFilter} results={results} />
-              </div>
+              ))}
             </div>
           </div>
         )}
 
-        {/* Disclaimer */}
-        <div className="max-w-2xl mx-auto px-4 pt-4">
-          <div className="bg-amber-500/8 border border-amber-500/15 rounded-xl px-4 py-2.5 flex items-start gap-2">
-            <svg className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="text-amber-400/70 text-[10px] leading-relaxed">
-              Predictions use a Poisson Monte Carlo model seeded from bookmaker odds. Odds shown are indicative — verify live lines before placing bets. For informational purposes only.
-            </p>
+        {/* Background simulation progress */}
+        {simCount < totalCount && (
+          <div className="pt-2">
+            <div className="flex items-center justify-between text-[9px] text-white/15 mb-1">
+              <span>Background simulations</span>
+              <span>{simCount}/{totalCount}</span>
+            </div>
+            <div className="h-0.5 bg-white/5 rounded-full overflow-hidden">
+              <div
+                className="h-0.5 bg-emerald-500/50 rounded-full transition-all duration-500"
+                style={{ width: `${(simCount / totalCount) * 100}%` }}
+              />
+            </div>
           </div>
-        </div>
-
-        {/* Grouped match cards */}
-        <div className="max-w-2xl mx-auto px-4 py-4 space-y-6 pb-4">
-          {groupKeys.map((league) => {
-            const leagueMatches = grouped[league];
-            const sample = leagueMatches[0];
-            return (
-              <div key={league}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-base leading-none">{sample.flag}</span>
-                  <div>
-                    <div className="text-white text-xs font-bold">{sample.league}</div>
-                    <div className="text-white/30 text-[10px]">{sample.date} · {sample.time}</div>
-                  </div>
-                  <div className="ml-auto bg-white/5 rounded-full px-2 py-0.5 text-[10px] text-white/30">
-                    {leagueMatches.length} matches
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {leagueMatches.map((match) => (
-                    <MatchCard key={match.id} match={match} onResult={handleResult} />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        )}
       </div>
 
-      {/* Sticky Accumulator Builder */}
+      {/* Sticky accumulator */}
       <AccaBuilder results={results} />
     </div>
   );
