@@ -4,6 +4,7 @@ import { runSimulation, getImpliedProbabilities, SimulationResult } from "@/lib/
 
 interface MatchCardProps {
   match: Match;
+  onResult?: (matchId: number, result: SimulationResult) => void;
 }
 
 function PctBar({ value, color }: { value: number; color: string }) {
@@ -26,7 +27,7 @@ function Stat({ label, value, highlight }: { label: string; value: string; highl
   );
 }
 
-export default function MatchCard({ match }: MatchCardProps) {
+export default function MatchCard({ match, onResult }: MatchCardProps) {
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [running, setRunning] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -39,6 +40,7 @@ export default function MatchCard({ match }: MatchCardProps) {
       const sim = runSimulation(match.odds, 40000);
       setResult(sim);
       setRunning(false);
+      onResult?.(match.id, sim);
     }, 50);
     return () => clearTimeout(timer);
   }, [match.id]);
