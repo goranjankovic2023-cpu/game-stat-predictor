@@ -1,0 +1,32 @@
+[
+  {
+    "matchId": 1290,
+    "clock": "Finished",
+    "status": "finished",
+    "homeScore": 2,
+    "awayScore": 3,
+    "note": "Final score",
+    "pressure": "neutral",
+    "updatedAt": "2026-05-12T21:30:00+02:00"
+  },
+  {
+    "matchId": 1291,
+    "clock": "75'",
+    "status": "live",
+    "homeScore": 2,
+    "awayScore": 1,
+    "note": "Live score feed",
+    "pressure": "home",
+    "updatedAt": "2026-05-12T21:30:00+02:00"
+  },
+  {
+    "matchId": 1292,
+    "clock": "20'",
+    "status": "live",
+    "homeScore": 0,
+    "awayScore": 1,
+    "note": "Live score feed",
+    "pressure": "away",
+    "updatedAt": "2026-05-12T21:42:00+02:00"
+  }
+]
